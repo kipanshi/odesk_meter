@@ -1,12 +1,18 @@
+import os
+import sys
+import json
 from datetime import datetime, timedelta
 
-import json
 from odesk import Client
 from odesk.utils import Query
 from odesk.utils import Q
 
-
 KEYS_FILE = 'keys.json'
+
+
+_PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+_LIB_DIR = os.path.join(_PROJECT_DIR, 'lib')
+[sys.path.insert(0, path) for path in (_LIB_DIR,)]
 
 
 def get_client(authorize=False):
@@ -44,3 +50,36 @@ def get_client(authorize=False):
                     )
 
     return client
+
+
+def get_auth_info(client):
+    return client.get('https://www.odesk.com/api/auth/v1/info')
+
+
+def get_auth_user_uid(client):
+    auth_info = get_auth_info(client)
+    return auth_info['auth_user']['uid']
+
+
+def get_timereport(client, from_date=None, to_date=None):
+    """Return parsed JSON data with timereport for given period.
+    Fields are default.
+
+    :from_date:    date object
+    :to_date:      date object
+
+    If empty - timereport from now to the begining of the current week.
+
+    """
+    now = datetime.now()
+    if not to_date:
+        if not from_date:
+            to_date = now.date()
+            from_date = now.date() - timedelta(days=now.weekday())
+
+    query = Query(
+        select=Query.DEFAULT_TIMEREPORT_FIELDS,
+        where=(Q('worked_on') <= to_date) & (Q('worked_on') >= to_date))
+    auth_user_uid = get_auth_user_uid(client)
+
+    return client.timereport.get_provider_report(auth_user_uid, query)
