@@ -16,10 +16,10 @@ Usage
 First, you need to create API key for authorization here:
 https://www.odesk.com/services/api/keys
 
-**Project name:** oDesk meter
-**Project type:** Desktop
-**Api usage:** (set depending on your demands, I usually set to 500+)
-**Auth type:** OAuth 1.0
+:**Project name**: oDesk meter
+:**Project type**: Desktop
+:**Api usage**: (set depending on your demands, I usually set to 500+)
+:**Auth type**: OAuth 1.0
 
 You will need your keys credentials on the first run of ``odesk_meter.py``.
 
