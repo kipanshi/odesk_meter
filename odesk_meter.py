@@ -137,6 +137,8 @@ def get_timereport_layout(data, odesk_uid):
          for team_name, team_data
          in get_today_and_this_week_times(data).items()]
     )
+    if not rows_rendered:
+        rows_rendered = "\nNo worked hours yet"
     template = 'User: {odesk_uid}\n{rows}'
     return template.format(
         odesk_uid=odesk_uid,
