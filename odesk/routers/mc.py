@@ -1,7 +1,7 @@
 """
 Python bindings to odesk API
 python-odesk version 0.5
-(C) 2010-2011 oDesk
+(C) 2010-2013 oDesk
 """
 
 import urllib
@@ -22,15 +22,15 @@ class MC(Namespace):
         """
         url = 'trays'
         if paging_offset or not paging_count == 20:
-            data = {'paging': '%s;%s' % (str(paging_offset),
-                                         str(paging_count))}
+            data = {'paging': '{0};{1}'.format(paging_offset,
+                                               paging_count)}
         else:
             data = {}
 
         if username:
-            url += '/%s' % str(username)
+            url = '{0}/{1}'.format(url, username)
         result = self.get(url, data=data)
-        return result["trays"]
+        return result.get("trays", result)
 
     def get_tray_content(self, username, tray, paging_offset=0,
                          paging_count=20):
@@ -43,15 +43,19 @@ class MC(Namespace):
           paging_offset     Start of page (number of results to skip)
           paging_count      Page size (number of results)
         """
-        url = 'trays/%s/%s' % (str(username), str(tray))
+        url = 'trays/{0}/{1}'.format(username, tray)
         if paging_offset or not paging_count == 20:
-            data = {'paging': '%s;%s' % (str(paging_offset),
-                                         str(paging_count))}
+            data = {'paging': '{0};{1}'.format(paging_offset,
+                                               paging_count)}
         else:
             data = {}
 
         result = self.get(url, data=data)
-        return result["current_tray"]["threads"]
+        try:
+            current_tray = result.get("current_tray", result)
+            return current_tray.get("threads", result)
+        except AttributeError:
+            return result
 
     def get_thread_content(self, username, thread_id, paging_offset=0,
                            paging_count=20):
@@ -64,15 +68,15 @@ class MC(Namespace):
           paging_offset     Start of page (number of results to skip)
           paging_count      Page size (number of results)
         """
-        url = 'threads/%s/%s' % (str(username), (thread_id))
+        url = 'threads/{0}/{1}'.format(username, thread_id)
         if paging_offset or not paging_count == 20:
-            data = {'paging': '%s;%s' % (str(paging_offset),
-                                         str(paging_count))}
+            data = {'paging': '{0};{1}'.format(paging_offset,
+                                               paging_count)}
         else:
             data = {}
 
         result = self.get(url, data=data)
-        return result["thread"]
+        return result.get("thread", result)
 
     def _generate_many_threads_url(self, url, threads_ids):
         return ';'.join(urllib.quote(str(i)) for i in threads_ids)
@@ -88,7 +92,7 @@ class MC(Namespace):
         """
         if isinstance(thread_ids, (list, tuple)):
             thread_ids = ';'.join(map(str, thread_ids))
-        url = 'threads/%s/%s' % (username, thread_ids)
+        url = 'threads/{0}/{1}'.format(username, thread_ids)
 
         if read:
             data = {'read': 'true'}
@@ -129,7 +133,7 @@ class MC(Namespace):
         """
         if isinstance(thread_ids, (list, tuple)):
             thread_ids = ';'.join(map(str, thread_ids))
-        url = 'threads/%s/%s' % (username, thread_ids)
+        url = 'threads/{0}/{1}'.format(username, thread_ids)
 
         if starred:
             data = {'starred': 'true'}
@@ -172,7 +176,7 @@ class MC(Namespace):
         """
         if isinstance(thread_ids, (list, tuple)):
             thread_ids = ';'.join(map(str, thread_ids))
-        url = 'threads/%s/%s' % (username, thread_ids)
+        url = 'threads/{0}/{1}'.format(username, thread_ids)
 
         if deleted:
             data = {'deleted': 'true'}
@@ -217,12 +221,12 @@ class MC(Namespace):
           thread_id     The thread id if replying to an existing thread
                         (optional)
         """
-        url = 'threads/%s' % str(username)
+        url = 'threads/{0}'.format(username)
         if not isinstance(recipients, (list, tuple)):
             recipients = [recipients]
         recipients = ','.join(map(str, recipients))
         if thread_id:
-            url += '/%s' % str(thread_id)
+            url = '{0}/{1}'.format(url, thread_id)
         return self.post(url, data={'recipients': recipients,
-                                      'subject': subject,
-                                      'body': body})
+                                    'subject': subject,
+                                    'body': body})

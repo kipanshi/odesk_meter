@@ -1,7 +1,7 @@
 """
 Python bindings to odesk API
-python-odesk version 0.4
-(C) 2010-2011 oDesk
+python-odesk version 0.5
+(C) 2010-2013 oDesk
 """
 
 import time
@@ -12,7 +12,6 @@ import logging
 
 
 from odesk.namespaces import Namespace
-from odesk.http import HttpRequest
 
 
 class OAuth(Namespace):
@@ -24,12 +23,17 @@ class OAuth(Namespace):
     authorize_url = 'https://www.odesk.com/services/api/auth'
     access_token_url = 'https://www.odesk.com/api/auth/v1/oauth/token/access'
 
-    def urlencode(self, url, key, secret, data=None, method='GET'):
+    def get_oauth_params(self, url, key, secret, data=None, method='GET',
+                         to_header=False, to_dict=False):
         """
         Converts a mapping object to signed url query
         """
+        # Temporary not use incoming data, just generate headers
         if data is None:
             data = {}
+        else:
+            data = data.copy()
+
         token = oauth.Token(key, secret)
         consumer = self.get_oauth_consumer()
         data.update({
@@ -42,6 +46,11 @@ class OAuth(Namespace):
         request = oauth.Request(method=method, url=url, parameters=data)
         signature_method = oauth.SignatureMethod_HMAC_SHA1()
         request.sign_request(signature_method, consumer, token)
+
+        if to_header:
+            return request.to_header()
+        if to_dict:
+            return request.copy()
         return request.to_postdata()
 
     def get_oauth_consumer(self):
@@ -57,7 +66,8 @@ class OAuth(Namespace):
         client = oauth.Client(self.get_oauth_consumer())
         response, content = client.request(self.request_token_url, 'POST')
         if response.get('status') != '200':
-            raise Exception("Invalid request token response: %s." % content)
+            raise Exception(
+                "Invalid request token response: {0}.".format(content))
         request_token = dict(urlparse.parse_qsl(content))
         self.request_token = request_token.get('oauth_token')
         self.request_token_secret = request_token.get('oauth_token_secret')
@@ -74,7 +84,7 @@ class OAuth(Namespace):
                 'oauth_callback': callback_url})
         else:
             params = urllib.urlencode({'oauth_token': oauth_token})
-        return '%s?%s' % (self.authorize_url, params)
+        return '{0}?{1}'.format(self.authorize_url, params)
 
     def get_access_token(self, verifier):
         """
@@ -92,8 +102,19 @@ class OAuth(Namespace):
         client = oauth.Client(self.get_oauth_consumer(), token)
         response, content = client.request(self.access_token_url, 'POST')
         if response.get('status') != '200':
-            raise Exception("Invalid access token response: %s." % content)
+            raise Exception(
+                "Invalid access token response: {0}.".format(content))
         access_token = dict(urlparse.parse_qsl(content))
         self.access_token = access_token.get('oauth_token')
         self.access_token_secret = access_token.get('oauth_token_secret')
         return self.access_token, self.access_token_secret
+
+    def get_info(self):
+        """
+        Get a detailed info about current authnticated user
+        and some data from his profile.
+
+        """
+        url = 'info'
+        result = self.get(url)
+        return self.get('info', result)

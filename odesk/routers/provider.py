@@ -1,7 +1,7 @@
 """
 Python bindings to odesk API
 python-odesk version 0.5
-(C) 2010-2011 oDesk
+(C) 2010-2013 oDesk
 """
 
 from odesk.namespaces import Namespace
@@ -33,9 +33,9 @@ class Provider(Namespace):
             provider_ciphertext = map(str, provider_ciphertext)
             provider_ciphertext = ';'.join(provider_ciphertext[:20])
 
-        url = 'providers/%s' % str(provider_ciphertext)
+        url = 'providers/{0}'.format(provider_ciphertext)
         result = self.get(url)
-        return result['profile']
+        return result.get('profile', result)
 
     def get_provider_brief(self, provider_ciphertext):
         """
@@ -49,12 +49,12 @@ class Provider(Namespace):
             provider_ciphertext = map(str, provider_ciphertext)
             provider_ciphertext = ';'.join(provider_ciphertext[:20])
 
-        url = 'providers/%s/brief' % str(provider_ciphertext)
+        url = 'providers/{0}/brief'.format(provider_ciphertext)
         result = self.get(url)
-        return result['profile']
+        return result.get('profile', result)
 
-    def get_providers(self, data=None, page_offset=0, page_size=20, \
-                        order_by=None):
+    def search_providers(self, data=None, page_offset=0, page_size=20,
+                         order_by=None):
         """
         Search oDesk providers
 
@@ -73,13 +73,14 @@ class Provider(Namespace):
         if data is None:
             data = {}
 
-        data['page'] = '%d;%d' % (page_offset, page_size)
+        data['page'] = '{0};{1}'.format(page_offset, page_size)
         if order_by is not None:
             data['order_by'] = order_by
         result = self.get(url, data=data)
-        return result['providers']
+        return result.get('providers', result)
 
-    def get_jobs(self, data=None, page_offset=0, page_size=20, order_by=None):
+    def search_jobs(self, data=None,
+                    page_offset=0, page_size=20, order_by=None):
         """
         Search oDesk jobs
 
@@ -96,11 +97,11 @@ class Provider(Namespace):
         url = 'search/jobs'
         if data is None:
             data = {}
-        data['page'] = '%d;%d' % (page_offset, page_size)
+        data['page'] = '{0};{1}'.format(page_offset, page_size)
         if order_by is not None:
             data['order_by'] = order_by
         result = self.get(url, data=data)
-        return result['jobs']
+        return result.get('jobs', result)
 
     def _get_resume_info(self, provider_ciphertext, info_type):
         '''
@@ -110,14 +111,14 @@ class Provider(Namespace):
         '''
         strinfo = str(info_type)
         if strinfo not in self.resume_info_result_keys:
-            raise ValueError('invalid info_type %s' % strinfo)
-        url = 'providers/%s/%s' % (str(provider_ciphertext), strinfo)
+            raise ValueError('invalid info_type {0}'.format(strinfo))
+        url = 'providers/{0}/{1}'.format(provider_ciphertext, strinfo)
         result = self.get(url)
         result_key = self.resume_info_result_keys[strinfo]
-        return result[result_key]
+        return result.get(result_key, result)
 
-    def _add_resume_info_item(self, provider_ciphertext, info_type,\
-        item_data):
+    def _add_resume_info_item(self, provider_ciphertext, info_type,
+                              item_data):
         '''
         info_type can be one of
         (otherexp|skills|tests|certificates|employments|\
@@ -125,44 +126,44 @@ class Provider(Namespace):
         '''
         strinfo = str(info_type)
         if strinfo not in self.resume_info_result_keys:
-            raise ValueError('invalid info_type %s' % strinfo)
-        url = 'providers/%s/%s' % (str(provider_ciphertext), strinfo)
+            raise ValueError('invalid info_type {0}'.format(strinfo))
+        url = 'providers/{0}/{1}'.format(provider_ciphertext, strinfo)
         return self.post(url, item_data)
 
-    def _update_resume_info_item(self, provider_ciphertext,\
-        resource_id, info_type, item_data):
+    def _update_resume_info_item(self, provider_ciphertext,
+                                 resource_id, info_type, item_data):
         '''
         info_type can be one of (otherexp|skills|tests|certificates|\
         employments|educations|projects
         '''
         strinfo = str(info_type)
         if strinfo not in self.resume_info_result_keys:
-            raise ValueError('invalid info_type %s' % strinfo)
+            raise ValueError('invalid info_type {0}'.format(strinfo))
 
         if resource_id is not None:
-            url = 'providers/%s/%s/%s' % (str(provider_ciphertext),\
-                str(resource_id), strinfo)
+            url = 'providers/{0}/{1}/{2}'.format(provider_ciphertext,
+                                                 resource_id, strinfo)
         else:
-            url = 'providers/%s/%s' % (str(provider_ciphertext),\
-                strinfo)
+            url = 'providers/{0}/{1}'.format(provider_ciphertext,
+                                             strinfo)
         return self.post(url, item_data)
 
-    def _delete_resume_info_item(self, provider_ciphertext,\
-        resource_id, info_type):
+    def _delete_resume_info_item(self, provider_ciphertext,
+                                 resource_id, info_type):
         '''
         info_type can be one of (otherexp|skills|tests|certificates|\
         employments|educations|projects
         '''
         strinfo = str(info_type)
         if strinfo not in self.resume_info_result_keys:
-            raise ValueError('invalid info_type %s' % strinfo)
+            raise ValueError('invalid info_type {0}'.format(strinfo))
 
         if resource_id is not None:
-            url = 'providers/%s/%s/%s' % (str(provider_ciphertext),\
-                str(resource_id), strinfo)
+            url = 'providers/{0}/{1}/{2}'.format(provider_ciphertext,
+                                                 resource_id, strinfo)
         else:
-            url = 'providers/%s/%s' % (str(provider_ciphertext),\
-                strinfo)
+            url = 'providers/{0}/{1}'.format(provider_ciphertext,
+                                             strinfo)
 
         return self.delete(url)
 
@@ -183,8 +184,8 @@ class Provider(Namespace):
           provider_ciphertext   Provider cipher text (key)
           data                  dict containing details of skill to add
           """
-        return self._add_resume_info_item(provider_ciphertext,\
-            'skills', data)
+        return self._add_resume_info_item(provider_ciphertext,
+                                          'skills', data)
 
     def update_skill(self, provider_ciphertext, skill_id, data):
         """
@@ -195,8 +196,8 @@ class Provider(Namespace):
           skill_id              Resource id of the referenced skill
           data                  dict containing details of skill to delete
           """
-        return self._update_resume_info_item(provider_ciphertext,\
-            skill_id, 'skills', data)
+        return self._update_resume_info_item(provider_ciphertext,
+                                             skill_id, 'skills', data)
 
     def delete_skill(self, provider_ciphertext, skill_id):
         """
@@ -206,8 +207,8 @@ class Provider(Namespace):
           provider_ciphertext   Provider cipher text (key)
           skill_id              Resource id of the referenced skill
           """
-        return self._delete_resume_info_item(provider_ciphertext,\
-            skill_id, 'skills')
+        return self._delete_resume_info_item(provider_ciphertext,
+                                             skill_id, 'skills')
 
     def get_quickinfo(self, provider_ciphertext):
         """
@@ -226,8 +227,8 @@ class Provider(Namespace):
           provider_ciphertext   Provider cipher text (key)
           data                  A dict containing updated 'quick info'
         """
-        return self._update_resume_info_item(provider_ciphertext, None,\
-                                            'quickinfo', data)
+        return self._update_resume_info_item(provider_ciphertext, None,
+                                             'quickinfo', data)
 
     def get_affiliates(self, affiliate_key):
         """
@@ -236,9 +237,9 @@ class Provider(Namespace):
         Parameters
           affiliate_key
         """
-        url = 'affiliates/%s' % affiliate_key
+        url = 'affiliates/{0}'.format(affiliate_key)
         result = self.get(url)
-        return result['profile']
+        return result.get('profile', result)
 
     def get_categories_metadata(self):
         """
@@ -247,7 +248,7 @@ class Provider(Namespace):
         """
         url = 'metadata/categories'
         result = self.get(url)
-        return result['categories']
+        return result.get('categories', result)
 
     def get_skills_metadata(self):
         """
@@ -256,7 +257,7 @@ class Provider(Namespace):
         """
         url = 'metadata/skills'
         result = self.get(url)
-        return result['skills']
+        return result.get('skills', result)
 
     def get_regions_metadata(self):
         """
@@ -265,7 +266,7 @@ class Provider(Namespace):
         """
         url = 'metadata/regions'
         result = self.get(url)
-        return result['regions']
+        return result.get('regions', result)
 
     def get_tests_metadata(self):
         """
@@ -273,4 +274,4 @@ class Provider(Namespace):
         """
         url = 'metadata/tests'
         result = self.get(url)
-        return result['tests']
+        return result.get('tests', result)

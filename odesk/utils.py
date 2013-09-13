@@ -5,6 +5,16 @@ python-odesk version 0.5
 """
 
 from datetime import date
+from odesk.exceptions import ApiValueError
+
+
+def assert_parameter(parameter_name, value, options_list):
+    """Raise an exception if parameter's value not in options list."""
+    if value not in options_list:
+        raise ApiValueError(
+            "Incorrect value for {0}: '{1}', "
+            "valid values are {2}".format(
+                parameter_name, value, options_list))
 
 
 class Q(object):
@@ -39,13 +49,13 @@ class Q(object):
     def arg_to_string(self, arg):
         if isinstance(arg, self.__class__):
             if arg.operator:
-                return '(%s)' % arg
+                return '({0})'.format(arg)
             else:
                 return arg
         elif isinstance(arg, str):
-            return "'%s'" % arg
+            return "'{0}'".format(arg)
         elif isinstance(arg, date):
-            return "'%s'" % arg.isoformat()
+            return "'{0}'".format(arg.isoformat())
         else:
             return str(arg)
 
@@ -53,7 +63,7 @@ class Q(object):
         if self.operator:
             str1 = self.arg_to_string(self.arg1)
             str2 = self.arg_to_string(self.arg2)
-            return '%s %s %s' % (str1, self.operator, str2)
+            return '{0} {1} {2}'.format(str1, self.operator, str2)
         else:
             return self.arg1
 
@@ -93,7 +103,7 @@ class Query(object):
         select_str = 'SELECT ' + ', '.join(select)
         where_str = ''
         if self.where:
-            where_str = ' WHERE %s' % self.where
+            where_str = ' WHERE {0}'.format(self.where)
         order_by_str = ''
         if self.order_by:
             order_by_str = ' ORDER BY ' + ','.join(self.order_by)

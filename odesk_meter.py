@@ -8,6 +8,11 @@ import pygtk
 pygtk.require('2.0')
 import gtk
 
+# Update python path
+_PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+_LIB_DIR = os.path.join(_PROJECT_DIR, 'lib')
+[sys.path.insert(0, path) for path in (_LIB_DIR,)]
+
 from odesk import Client
 from odesk.utils import Query
 from odesk.utils import Q
@@ -15,11 +20,6 @@ from odesk.utils import Q
 KEYS_FILE = 'keys.json'
 
 ODESK_WORKED_ON_FORMAT = '%Y%m%d'
-
-# Update python path
-_PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
-_LIB_DIR = os.path.join(_PROJECT_DIR, 'lib')
-[sys.path.insert(0, path) for path in (_LIB_DIR,)]
 
 
 def get_client(authorize=False):
@@ -38,7 +38,7 @@ def get_client(authorize=False):
             keys = json.loads(f.read())
 
     if authorize:
-        client = Client(keys['key'], keys['secret'], auth='oauth')
+        client = Client(keys['key'], keys['secret'])
         verifier = raw_input(
             'Please enter the verification code you get '
             'following this link:\n{0}\n\n> '.format(client.auth.get_authorize_url()))
@@ -51,7 +51,7 @@ def get_client(authorize=False):
             f.write(json.dumps(keys))
         print 'OK'
 
-    client = Client(keys['key'], keys['secret'], auth='oauth',
+    client = Client(keys['key'], keys['secret'],
                     oauth_access_token=keys['access_token_0'],
                     oauth_access_token_secret=keys['access_token_1'],
                     )
@@ -129,7 +129,7 @@ def get_timereport_layout(data, odesk_uid):
     :odesk_uid:   oDesk user UID
 
     """
-    row_template = '{0}:\t{1:.2f} hrs today\n\t\t{2:.2f} hrs this week\n'
+    row_template = '{0}:\n\t{1:.2f} hrs today\n\t{2:.2f} hrs this week\n'
     rows_rendered = '\n'.join(
         [row_template.format(team_name,
                              team_data['today_hours'],
