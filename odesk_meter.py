@@ -59,13 +59,9 @@ def get_client(authorize=False):
     return client
 
 
-def get_auth_info(client):
-    return client.get('https://www.odesk.com/api/auth/v1/info')
-
-
 def get_auth_user_uid(client):
-    auth_info = get_auth_info(client)
-    return auth_info['auth_user']['uid']
+    user_info = client.hr.get_user_me()
+    return user_info['id']
 
 
 def get_timereport(client, from_date=None, to_date=None):
