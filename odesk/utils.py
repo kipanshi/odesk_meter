@@ -1,8 +1,6 @@
-"""
-Python bindings to odesk API
-python-odesk version 0.5
-(C) 2010 oDesk
-"""
+# Python bindings to oDesk API
+# python-odesk version 0.5
+# (C) 2010-2014 oDesk
 
 from datetime import date
 from odesk.exceptions import ApiValueError
@@ -17,8 +15,26 @@ def assert_parameter(parameter_name, value, options_list):
                 parameter_name, value, options_list))
 
 
+def decimal_default(obj):
+    """JSON serialization of Decimal.
+
+    *Usage:*
+      ``json.dumps(data, default=decimal_default)``
+
+    Converts decimal to string.
+
+    """
+    if obj.__class__.__name__ == 'Decimal':
+        return str(obj)
+    raise TypeError
+
+
 class Q(object):
-    '''Simple query constructor'''
+    """Simple GDS query constructor.
+
+    Used to costruct :py:class:`odesk.utils.Query`.
+
+    """
 
     def __init__(self, arg1, operator=None, arg2=None):
         self.arg1 = arg1
@@ -69,7 +85,16 @@ class Q(object):
 
 
 class Query(object):
-    '''Simple query'''
+    """Simple GDS query.
+
+    *Example:*::
+
+      client.timereport.get_provider_report('user1',
+          odesk.utils.Query(select=odesk.utils.Query.DEFAULT_TIMEREPORT_FIELDS,
+                            where=(odesk.utils.Q('worked_on') <= date.today()) &
+                            (odesk.utils.Q('worked_on') > '2010-05-01')))
+
+    """
 
     DEFAULT_TIMEREPORT_FIELDS = ['worked_on',
                                  'team_id',
@@ -113,7 +138,8 @@ class Query(object):
 class Table(object):
 
     """
-    A helper class to access cryptic GDS response as a list of dictionaries
+    A helper class to access cryptic GDS response as a list of dictionaries.
+
     """
 
     def __init__(self, data):

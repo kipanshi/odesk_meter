@@ -1,14 +1,17 @@
-"""
-Python bindings to odesk API
-python-odesk version 0.5
-(C) 2010-2013 oDesk
-"""
+# Python bindings to oDesk API
+# python-odesk version 0.5
+# (C) 2010-2014 oDesk
 
 import logging
 import urllib2
 
 
 class BaseException(Exception):
+    """Base exception class.
+
+    Performs logging.
+
+    """
     def __init__(self, *args, **kwargs):
         self.odesk_debug(*args, **kwargs)
 
@@ -59,4 +62,8 @@ class NotAuthenticatedError(BaseException):
 
 
 class ApiValueError(BaseException):
+    pass
+
+
+class IncorrectJsonResponseError(BaseException):
     pass

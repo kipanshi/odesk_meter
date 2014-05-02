@@ -1,23 +1,27 @@
 # -*- coding: utf-8 -*-
-"""
-Python bindings to odesk API
-python-odesk version 0.4
-(C) 2010 oDesk
-"""
-from odesk import Client, get_version
+
+# Python bindings to oDesk API
+# python-odesk version 0.5
+# (C) 2010-2014 oDesk
+
+from decimal import Decimal
+
+
+from odesk import Client
 from odesk import utils
 from odesk.exceptions import (HTTP400BadRequestError,
                               HTTP401UnauthorizedError,
                               HTTP403ForbiddenError,
                               HTTP404NotFoundError,
-                              ApiValueError)
+                              ApiValueError,
+                              IncorrectJsonResponseError)
 
 from odesk.namespaces import Namespace
 from odesk.oauth import OAuth
-from odesk.routers.team import Team
+from odesk.routers.team import Team, Team_V2
 from odesk.http import ODESK_ERROR_CODE, ODESK_ERROR_MESSAGE
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 from mock import Mock, patch
 import urlparse
 import urllib2
@@ -101,11 +105,16 @@ def test_client_urlopen():
 
 
 def patched_urlopen_error(method, url, code=httplib.BAD_REQUEST,
-                          message=None, **kwargs):
+                          message=None, data=None, **kwargs):
     getheaders = Mock()
     getheaders.return_value = {ODESK_ERROR_CODE: code,
                                ODESK_ERROR_MESSAGE: message}
-    return MicroMock(data='', getheaders=getheaders, status=code)
+    return MicroMock(data=data, getheaders=getheaders, status=code)
+
+
+def patched_urlopen_incorrect_json(self, method, url, **kwargs):
+    return patched_urlopen_error(
+        method, url, code=httplib.OK, data='Service temporarily unavailable')
 
 
 def patched_urlopen_400(self, method, url, **kwargs):
@@ -136,6 +145,11 @@ def patched_urlopen_500(self, method, url, **kwargs):
     return patched_urlopen_error(
         method, url, code=httplib.INTERNAL_SERVER_ERROR,
         message='Internal server error', **kwargs)
+
+
+@patch('urllib3.PoolManager.urlopen', patched_urlopen_incorrect_json)
+def client_read_incorrect_json(client, url):
+    return client.read(url)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_400)
@@ -183,7 +197,7 @@ def test_client_read():
                 oauth_access_token_secret='some access token secret')
     test_url = 'http://test.url'
 
-    #produce error on format other then json
+    # Produce error on format other then json
     class NotJsonException(Exception):
         pass
 
@@ -196,11 +210,23 @@ def test_client_read():
     except Exception:
         pass
 
-    #test get, all ok
+    # Test get, all ok
     result = client.read(url=test_url)
     assert result == sample_json_dict, result
 
-    #test get, 400 error
+    # Test get and status is ok, but json is incorrect,
+    # IncorrectJsonResponseError should be raised
+    try:
+        result = client_read_incorrect_json(client=client, url=test_url)
+        ok_(0, "No exception raised for 200 code and "
+               "incorrect json response: {0}".format(result))
+    except IncorrectJsonResponseError:
+        pass
+    except Exception, e:
+        assert 0, "Incorrect exception raised for 200 code " \
+            "and incorrect json response: " + str(e)
+
+    # Test get, 400 error
     try:
         result = client_read_400(client=client, url=test_url)
     except HTTP400BadRequestError, e:
@@ -208,7 +234,7 @@ def test_client_read():
     except Exception, e:
         assert 0, "Incorrect exception raised for 400 code: " + str(e)
 
-    #test get, 401 error
+    # Test get, 401 error
     try:
         result = client_read_401(client=client, url=test_url)
     except HTTP401UnauthorizedError, e:
@@ -216,7 +242,7 @@ def test_client_read():
     except Exception, e:
         assert 0, "Incorrect exception raised for 401 code: " + str(e)
 
-    #test get, 403 error
+    # Test get, 403 error
     try:
         result = client_read_403(client=client, url=test_url)
     except HTTP403ForbiddenError, e:
@@ -224,7 +250,7 @@ def test_client_read():
     except Exception, e:
         assert 0, "Incorrect exception raised for 403 code: " + str(e)
 
-    #test get, 404 error
+    # Test get, 404 error
     try:
         result = client_read_404(client=client, url=test_url)
     except HTTP404NotFoundError, e:
@@ -232,7 +258,7 @@ def test_client_read():
     except Exception, e:
         assert 0, "Incorrect exception raised for 404 code: " + str(e)
 
-    #test get, 500 error
+    # Test get, 500 error
     try:
         result = client_read_500(client=client, url=test_url)
     except urllib2.HTTPError, e:
@@ -317,18 +343,19 @@ def patched_urlopen_teamrooms(*args, **kwargs):
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_teamrooms)
 def test_team():
     te = Team(get_client())
+    te_v2 = Team_V2(get_client())
 
     #test full_url
     full_url = te.full_url('test')
     assert full_url == 'https://www.odesk.com/api/team/v1/test', full_url
 
     #test get_teamrooms
-    assert te.get_teamrooms() == [teamrooms_dict['teamrooms']['teamroom']], \
-         te.get_teamrooms()
+    assert te_v2.get_teamrooms() == \
+        [teamrooms_dict['teamrooms']['teamroom']], te.get_teamrooms()
 
     #test get_snapshots
-    assert te.get_snapshots(1) == [teamrooms_dict['teamroom']['snapshot']], \
-         te.get_snapshots(1)
+    assert te_v2.get_snapshots(1) == \
+        [teamrooms_dict['teamroom']['snapshot']], te.get_snapshots(1)
 
     #test get_snapshot
     assert te.get_snapshot(1, 1) == teamrooms_dict['snapshot'], \
@@ -360,16 +387,17 @@ def patched_urlopen_teamrooms_none(*args, **kwargs):
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_teamrooms_none)
 def test_teamrooms_none():
     te = Team(get_client())
+    te_v2 = Team_V2(get_client())
 
     #test full_url
     full_url = te.full_url('test')
     assert full_url == 'https://www.odesk.com/api/team/v1/test', full_url
 
     #test get_teamrooms
-    assert te.get_teamrooms() == [], te.get_teamrooms()
+    assert te_v2.get_teamrooms() == [], te_v2.get_teamrooms()
 
     #test get_snapshots
-    assert te.get_snapshots(1) == [], te.get_snapshots(1)
+    assert te_v2.get_snapshots(1) == [], te_v2.get_snapshots(1)
 
     #test get_snapshot
     eq_(te.get_snapshot(1, 1), teamrooms_dict_none['snapshot'])
@@ -582,7 +610,8 @@ def test_get_hrv2_jobs():
     #test get_jobs
     assert hr.get_jobs(1) == hr_dict[u'jobs'], hr.get_jobs()
     assert hr.get_job(1) == hr_dict[u'job'], hr.get_job(1)
-    result = hr.update_job(1, 2, 'title', 'desc', 'public', budget=100)
+    result = hr.update_job(1, 2, 'title', 'desc', 'public', budget=100,
+                           status='open')
     eq_(result, hr_dict)
     assert hr.delete_job(1, 41) == hr_dict, hr.delete_job(1, 41)
 
@@ -599,13 +628,8 @@ def test_get_hrv2_offers():
 def test_get_hrv2_engagements():
     hr = get_client().hr
 
-    # test conditional ``provider_reference`` and ``profile_key``
-    try:
-        hr.get_engagements()
-        raise Exception('Neither of ``provider_reference`` and ``profile_key``'
-                        'was specified')
-    except ApiValueError:
-        pass
+    eq_(hr.get_engagements(), hr_dict[u'engagements'])
+
     eq_(hr.get_engagements(provider_reference=1), hr_dict[u'engagements'])
     eq_(hr.get_engagements(profile_key=1), hr_dict[u'engagements'])
     eq_(hr.get_engagement(1), hr_dict[u'engagement'])
@@ -760,27 +784,6 @@ def test_provider():
     #test search_jobs
     assert pr.search_jobs(data={'a': 1}) == provider_dict['jobs'], \
         pr.get_jobs(data={'a': 1})
-
-    assert pr.get_skills(1) == provider_dict['skills'], \
-        pr.get_skills(1)
-
-    assert pr.add_skill(1, {'skill': 'skill'}) == provider_dict, \
-        pr.add_skill(1, {'skill': 'skill'})
-
-    assert pr.update_skill(1, 1, {'skill': 'skill'}) == provider_dict, \
-        pr.update_skill(1, 1, {'skill': 'skill'})
-
-    assert pr.delete_skill(1, 1) == provider_dict, \
-        pr.delete_skill(1, 1)
-
-    assert pr.get_quickinfo(1) == provider_dict['quick_info'], \
-        pr.get_quickinfo(1)
-
-    assert pr.update_quickinfo(1, {'quickinfo': 'quickinfo'}) == provider_dict, \
-        pr.update_quickinfo(1, {'quickinfo': 'quickinfo'})
-
-    result = pr.get_affiliates(1)
-    assert result == provider_dict['profile']
 
     result = pr.get_categories_metadata()
     assert result == provider_dict['categories']
@@ -1116,16 +1119,6 @@ def test_get_financial_entities_provider():
     assert read == fin_report_dict, read
 
 
-def test_get_version():
-    import odesk
-    odesk.VERSION = (1, 2, 3, 'alpha', 2)
-
-    assert get_version() == '1.2.3 alpha 2', get_version()
-
-    odesk.VERSION = (1, 2, 3, 'alpha', 0)
-    assert get_version() == '1.2.3 pre-alpha', get_version()
-
-
 task_dict = {u'tasks': 'task1'}
 
 
@@ -1134,59 +1127,19 @@ def patched_urlopen_task(*args, **kwargs):
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_company_tasks():
-    task = get_client().task
-
-    assert task.get_company_tasks(1) == task_dict['tasks'], \
-     task.get_company_tasks(1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
 def test_get_team_tasks():
     task = get_client().task
 
     assert task.get_team_tasks(1, 1) == task_dict['tasks'], \
-     task.get_team_tasks(1, 1)
+        task.get_team_tasks(1, 1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_user_tasks():
+def test_get_company_tasks():
     task = get_client().task
 
-    assert task.get_user_tasks(1, 1, 1) == task_dict['tasks'], \
-     task.get_user_tasks(1, 1, 1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_company_tasks_full():
-    task = get_client().task
-
-    assert task.get_company_tasks_full(1) == task_dict['tasks'], \
-     task.get_company_tasks_full(1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_team_tasks_full():
-    task = get_client().task
-
-    assert task.get_team_tasks_full(1, 1) == task_dict['tasks'], \
-     task.get_team_tasks_full(1, 1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_user_tasks_full():
-    task = get_client().task
-
-    assert task.get_user_tasks_full(1, 1, 1) == task_dict['tasks'], \
-     task.get_user_tasks_full(1, 1, 1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_company_specific_tasks():
-    task = get_client().task
-
-    assert task.get_company_specific_tasks(1, [1, 1]) == task_dict['tasks'], \
-     task.get_company_specific_tasks(1, [1, 1])
+    assert task.get_company_tasks(1) == task_dict['tasks'], \
+        task.get_company_tasks(1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
@@ -1194,111 +1147,89 @@ def test_get_team_specific_tasks():
     task = get_client().task
 
     assert task.get_team_specific_tasks(1, 1, [1, 1]) == task_dict['tasks'], \
-     task.get_team_specific_tasks(1, 1, [1, 1])
+        task.get_team_specific_tasks(1, 1, [1, 1])
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_get_user_specific_tasks():
+def test_get_company_specific_tasks():
     task = get_client().task
 
-    assert task.get_user_specific_tasks(1, 1, 1, [1, 1]) == task_dict['tasks'], \
-     task.get_user_specific_tasks(1, 1, 1, [1, 1])
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_post_company_task():
-    task = get_client().task
-
-    assert task.post_company_task(1, 1, '1', 'ttt') == task_dict, \
-     task.post_company_task(1, 1, '1', 'ttt')
+    assert task.get_company_specific_tasks(1, [1, 1]) == task_dict['tasks'], \
+        task.get_company_specific_tasks(1, [1, 1])
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
 def test_post_team_task():
     task = get_client().task
 
-    assert task.post_team_task(1, 1, 1, '1', 'ttt') == task_dict, \
-     task.post_team_task(1, 1, 1, '1', 'ttt')
+    assert task.post_team_task(1, 1, 1, '1', 'ttt',
+                               engagements=[1, 2],
+                               all_in_company=True) == task_dict, \
+        task.post_team_task(1, 1, 1, '1', 'ttt', engagements=[1, 2],
+                            all_in_company=True)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_post_user_task():
+def test_post_company_task():
     task = get_client().task
 
-    assert task.post_user_task(1, 1, 1, 1, '1', 'ttt') == task_dict, \
-     task.post_user_task(1, 1, 1, 1, '1', 'ttt')
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_put_company_task():
-    task = get_client().task
-
-    assert task.put_company_task(1, 1, '1', 'ttt') == task_dict, \
-     task.put_company_task(1, 1, '1', 'ttt')
+    assert task.post_company_task(1, 1, '1', 'ttt',
+                                  engagements=[1, 2],
+                                  all_in_company=True) == task_dict, \
+        task.post_company_task(1, 1, '1', 'ttt')
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
 def test_put_team_task():
     task = get_client().task
 
-    assert task.put_team_task(1, 1, 1, '1', 'ttt') == task_dict, \
-     task.put_team_task(1, 1, 1, '1', 'ttt')
+    assert task.put_team_task(1, 1, 1, '1', 'ttt',
+                              engagements=[1, 2],
+                              all_in_company=True) == task_dict, \
+        task.put_team_task(1, 1, 1, '1', 'ttt', engagements=[1, 2],
+                           all_in_company=True)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_put_user_task():
+def test_put_company_task():
     task = get_client().task
 
-    assert task.put_user_task(1, 1, 1, 1, '1', 'ttt') == task_dict, \
-     task.put_user_task(1, 1, 1, 1, '1', 'ttt')
+    assert task.put_company_task(1, 1, '1', 'ttt', engagements=[1, 2],
+                                 all_in_company=True) == task_dict, \
+        task.put_company_task(1, 1, '1', 'ttt', engagements=[1, 2],
+                              all_in_company=True)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_company_task():
+def test_archive_team_task():
     task = get_client().task
 
-    assert task.delete_company_task(1, [1, 1]) == task_dict, \
-     task.delete_company_task(1, [1, 1])
+    assert task.archive_team_task(1, 1, 1) == task_dict, \
+        task.archive_team_task(1, 1, 1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_team_task():
+def test_archive_company_task():
     task = get_client().task
 
-    assert task.delete_team_task(1, 1, [1, 1]) == task_dict, \
-     task.delete_team_task(1, 1, [1, 1])
+    assert task.archive_company_task(1, 1) == task_dict, \
+        task.archive_company_task(1, 1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_user_task():
+def test_unarchive_team_task():
     task = get_client().task
 
-    assert task.delete_user_task(1, 1, 1, [1, 1]) == task_dict, \
-     task.delete_user_task(1, 1, 1, [1, 1])
+    assert task.unarchive_team_task(1, 1, 1) == task_dict, \
+        task.unarchive_team_task(1, 1, 1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_all_company_tasks():
+def test_unarchive_company_task():
     task = get_client().task
 
-    assert task.delete_all_company_tasks(1) == task_dict, \
-     task.delete_all_company_tasks(1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_all_team_tasks():
-    task = get_client().task
-
-    assert task.delete_all_team_tasks(1, 1) == task_dict, \
-     task.delete_all_team_tasks(1, 1)
-
-
-@patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
-def test_delete_all_user_tasks():
-    task = get_client().task
-
-    assert task.delete_all_user_tasks(1, 1, 1) == task_dict, \
-     task.delete_all_user_tasks(1, 1, 1)
+    assert task.unarchive_company_task(1, 1) == task_dict, \
+        task.unarchive_company_task(1, 1)
 
 
 @patch('urllib3.PoolManager.urlopen', patched_urlopen_task)
@@ -1306,7 +1237,7 @@ def test_update_batch_tasks():
     task = get_client().task
 
     assert task.update_batch_tasks(1, "1;2;3") == task_dict, \
-     task.update_batch_tasks(1, "1;2;3")
+        task.update_batch_tasks(1, "1;2;3")
 
 
 def test_gds_namespace():
@@ -1506,3 +1437,25 @@ def test_multiple_job_profiles():
     assert job.get_job_profile(['~~111111111', '~~222222222']) == \
         job_profiles_dict['profiles']['profile'], \
         job.get_job_profile(['~~111111111', '~~222222222'])
+
+
+#======================
+# UTILS TESTS
+#======================
+def test_decimal_default():
+    from odesk.utils import decimal_default
+
+    value = '0.132'
+
+    eq_('{"value": "0.132"}', json.dumps({'value': Decimal(value)},
+                                         default=decimal_default))
+
+    value = '0'
+
+    eq_('{"value": "0"}', json.dumps({'value': Decimal(value)},
+                                     default=decimal_default))
+
+    value = '10'
+
+    eq_('{"value": "10"}', json.dumps({'value': Decimal(value)},
+                                      default=decimal_default))

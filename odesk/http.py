@@ -1,8 +1,6 @@
-"""
-Python bindings to odesk API
-python-odesk version 0.5
-(C) 2010-2013 oDesk
-"""
+# Python bindings to oDesk API
+# python-odesk version 0.5
+# (C) 2010-2014 oDesk
 
 import logging
 import urllib2
@@ -15,8 +13,18 @@ ODESK_ERROR_CODE = 'x-odesk-error-code'
 ODESK_ERROR_MESSAGE = 'x-odesk-error-message'
 
 
+__all__ = ['raise_http_error']
+
+
 def raise_http_error(url, response):
-    '''Raise custom exception'''
+    """Raise custom ``urllib2.HTTPError`` exception.
+
+    *Parameters:*
+      :url:         Url that caused an error
+
+      :response:    ``urllib3`` response object
+
+    """
     status_code = response.status
 
     headers = response.getheaders()
